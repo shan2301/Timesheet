@@ -12,6 +12,7 @@ import { LeaveApprovalDetailComponent } from './leave-approval-detail/leave-appr
 import { LeaveApprovalsComponent } from './leave-approvals/leave-approvals.component';
 import { LeavesComponent } from './leaves/leaves.component';
 import { LoginComponent } from './login/login.component';
+import { NotificationsComponent } from './notifications/notifications.component';
 import { ProfileComponent } from './profile/profile.component';
 import { TeamComponent } from './team/team.component';
 import { TimesheetComponent } from './timesheet/timesheet.component';
@@ -58,6 +59,11 @@ export const routes: Routes = [
     path: 'profile',
     component: ProfileComponent,
     canActivate: [timesheetGuard]
+  },
+  {
+    path: 'notifications',
+    component: NotificationsComponent,
+    canActivate: [authGuard]
   },
   {
     path: 'leave-approvals',

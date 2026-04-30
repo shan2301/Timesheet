@@ -5,6 +5,7 @@ using System.Security.Claims;
 using TimesheetAPI.Data;
 using TimesheetAPI.Models;
 using TimesheetAPI.Security;
+using TimesheetAPI.Services;
 
 namespace TimesheetAPI.Controllers
 {
@@ -14,10 +15,12 @@ namespace TimesheetAPI.Controllers
     public class LeaveController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly NotificationService _notifications;
 
-        public LeaveController(AppDbContext context)
+        public LeaveController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
+            _notifications = notifications;
         }
 
         private static LeaveType NormalizePolicyType(LeaveType type)
@@ -141,6 +144,9 @@ namespace TimesheetAPI.Controllers
 
             _context.LeaveRequests.Add(leave);
             _context.SaveChanges();
+
+            var managers = _notifications.GetManagersForEmployee(userId);
+            _notifications.CreateMany(managers, $"New leave request submitted by User {userId} ({policyType}) {start:yyyy-MM-dd} to {end:yyyy-MM-dd}");
 
             return Ok(leave);
         }
@@ -408,6 +414,8 @@ namespace TimesheetAPI.Controllers
             leave.RejectionReason = nextStatus == "Rejected" ? rejectionReason : null;
 
             _context.SaveChanges();
+
+            _notifications.Create(leave.UserId, $"Your leave request #{leave.Id} was {leave.Status}");
 
             return Ok(new
             {

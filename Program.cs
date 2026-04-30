@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using TimesheetAPI.Data;
 using TimesheetAPI.Models;
 using TimesheetAPI.Security;
+using TimesheetAPI.Services;
 using System.Text;
 using System.Text.Json.Serialization;
 
@@ -75,6 +76,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<NotificationService>();
 
 // Database connection
 builder.Services.AddDbContext<AppDbContext>(options =>

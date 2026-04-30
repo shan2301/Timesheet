@@ -5,6 +5,7 @@ using System.Security.Claims;
 using TimesheetAPI.Data;
 using TimesheetAPI.Models;
 using TimesheetAPI.Security;
+using TimesheetAPI.Services;
 
 namespace TimesheetAPI.Controllers
 {
@@ -14,10 +15,12 @@ namespace TimesheetAPI.Controllers
     public class WeeklyTimesheetController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly NotificationService _notifications;
 
-        public WeeklyTimesheetController(AppDbContext context)
+        public WeeklyTimesheetController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
+            _notifications = notifications;
         }
 
         private static DateTime NormalizeToMonday(DateTime date)
@@ -224,6 +227,8 @@ namespace TimesheetAPI.Controllers
 
             _context.SaveChanges();
 
+            _notifications.Create(w.UserId, $"Your timesheet submission #{w.Id} was {w.Status}");
+
             return Ok(new { w.Id, w.Status, w.ApprovedBy, w.ApprovedOn });
         }
 
@@ -400,6 +405,9 @@ namespace TimesheetAPI.Controllers
             w.SubmittedAt = DateTime.UtcNow;
 
             _context.SaveChanges();
+
+            var managers = _notifications.GetManagersForEmployee(userId);
+            _notifications.CreateMany(managers, $"New timesheet submitted by User {userId} for week starting {weekStart:yyyy-MM-dd}");
 
             return Ok(new { w.Id, w.Status, w.SubmittedAt });
         }
