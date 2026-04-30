@@ -1,0 +1,113 @@
+<div class="app-shell">
+  <div class="container">
+    <header class="topbar">
+      <div class="topbar-left">
+        <a class="brandlink" routerLink="/dashboard">
+          <img
+            class="topbar-logo"
+            src="images/LOGO%20copy.png"
+            alt="Salem Infotech"
+          />
+        </a>
+      </div>
+
+      <nav class="topbar-nav" *ngIf="isLoggedIn()">
+        <a class="navlink" routerLink="/dashboard" routerLinkActive="active">Dashboard</a>
+
+        <a
+          class="navlink"
+          *ngIf="normalizedRole() === 'Employee'"
+          routerLink="/timesheet"
+          routerLinkActive="active"
+        >
+          My Timesheets
+        </a>
+
+        <a
+          class="navlink"
+          *ngIf="normalizedRole() === 'Employee' || normalizedRole() === 'Manager'"
+          routerLink="/leaves"
+          routerLinkActive="active"
+        >
+          Leaves
+        </a>
+
+        <a
+          class="navlink"
+          *ngIf="normalizedRole() === 'Manager'"
+          routerLink="/approve"
+          routerLinkActive="active"
+        >
+          Approvals
+        </a>
+
+        <a
+          class="navlink"
+          *ngIf="normalizedRole() === 'Manager' || normalizedRole() === 'Admin'"
+          routerLink="/leave-approvals"
+          routerLinkActive="active"
+        >
+          Leave Approvals
+        </a>
+
+        <a
+          class="navlink"
+          *ngIf="normalizedRole() === 'Admin'"
+          routerLink="/admin/users"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          Users
+        </a>
+
+        <div class="navdropdown" *ngIf="normalizedRole() === 'Admin'">
+          <a class="navlink" href="javascript:void(0)">Master</a>
+          <div class="navdropdown-menu">
+            <a class="navdropdown-item" routerLink="/admin/departments" routerLinkActive="active">
+              Departments
+            </a>
+            <a class="navdropdown-item" routerLink="/admin/projects" routerLinkActive="active">
+              Projects
+            </a>
+            <a class="navdropdown-item" routerLink="/admin/tasks" routerLinkActive="active">
+              Tasks
+            </a>
+            <a class="navdropdown-item" routerLink="/admin/leave-policy" routerLinkActive="active">
+              Leave Policy
+            </a>
+          </div>
+        </div>
+
+        <a
+          class="navlink"
+          *ngIf="normalizedRole() === 'Admin'"
+          routerLink="/admin/all"
+          routerLinkActive="active"
+        >
+          Timesheets
+        </a>
+      </nav>
+
+      <div class="topbar-right">
+        <ng-container *ngIf="isLoggedIn()">
+          <span class="pill">{{ normalizedRole() || role() }}</span>
+
+          <div class="navdropdown" *ngIf="normalizedRole() === 'Employee' || normalizedRole() === 'Manager'; else adminLogout">
+            <button class="avatar-btn" type="button" aria-label="Profile menu">
+              {{ (normalizedRole() || 'U').slice(0, 1) }}
+            </button>
+            <div class="navdropdown-menu" style="left: auto; right: 0; min-width: 160px;">
+              <a class="navdropdown-item" routerLink="/profile" routerLinkActive="active">Profile</a>
+              <a class="navdropdown-item" href="javascript:void(0)" (click)="logout()">Logout</a>
+            </div>
+          </div>
+
+          <ng-template #adminLogout>
+            <button class="btn btn-primary" type="button" (click)="logout()">Logout</button>
+          </ng-template>
+        </ng-container>
+      </div>
+    </header>
+    <router-outlet />
+  </div>
+</div>

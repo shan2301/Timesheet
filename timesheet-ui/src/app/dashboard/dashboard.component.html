@@ -1,0 +1,246 @@
+<div class="card">
+  <div class="header">
+    <div>
+      <h2 class="title">Dashboard</h2>
+      <p class="subtitle">Role-based shortcuts and actions.</p>
+    </div>
+    <span class="pill">{{ role || '—' }}</span>
+  </div>
+
+  <div class="card-body">
+    <!-- Admin KPI cards -->
+    <div *ngIf="role === 'Admin'" class="row" style="margin-bottom: 14px;">
+      <div class="card" style="box-shadow:none; background: rgba(255,255,255,0.55);">
+        <div class="card-body">
+          <div class="subtitle" style="margin:0;">Active users</div>
+          <div class="title" style="font-size: 28px; margin-top: 8px;">
+            {{ loading() ? '—' : stats().activeUsers }}
+          </div>
+        </div>
+      </div>
+      <div class="card" style="box-shadow:none; background: rgba(255,255,255,0.55);">
+        <div class="card-body">
+          <div class="subtitle" style="margin:0;">Pending timesheets</div>
+          <div class="title" style="font-size: 28px; margin-top: 8px;">
+            {{ loading() ? '—' : stats().pendingTimesheets }}
+          </div>
+        </div>
+      </div>
+      <div class="card" style="box-shadow:none; background: rgba(255,255,255,0.55);">
+        <div class="card-body">
+          <div class="subtitle" style="margin:0;">Pending leave requests</div>
+          <div class="title" style="font-size: 28px; margin-top: 8px;">
+            {{ loading() ? '—' : stats().pendingLeaveRequests }}
+          </div>
+          <div class="subtitle" style="margin-top: 6px;">
+            Leave module not enabled yet
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manager -->
+    <div *ngIf="role === 'Manager'" class="stack" style="margin-bottom: 14px;">
+      <div class="row">
+        <div class="card card-soft">
+          <div class="card-body">
+            <div class="subtitle" style="margin:0;">Timesheet submissions</div>
+            <div class="title" style="font-size: 26px; margin-top: 8px;">
+              {{ mgrWeekly().submitted }}
+            </div>
+            <div class="subtitle" style="margin-top: 6px;">Pending review</div>
+            <div class="subtitle" style="margin-top: 10px;">
+              Total: {{ mgrWeekly().total }} · Approved: {{ mgrWeekly().approved }} · Rejected: {{ mgrWeekly().rejected }}
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-soft">
+          <div class="card-body">
+            <div class="subtitle" style="margin:0;">Leave requests</div>
+            <div class="title" style="font-size: 26px; margin-top: 8px;">
+              {{ mgrLeaves().pending }}
+            </div>
+            <div class="subtitle" style="margin-top: 6px;">Pending review</div>
+            <div class="subtitle" style="margin-top: 10px;">
+              Total: {{ mgrLeaves().total }} · Approved: {{ mgrLeaves().approved }} · Rejected: {{ mgrLeaves().rejected }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-soft">
+        <div class="card-body">
+          <div class="title" style="font-size: 16px; margin:0;">Quick actions</div>
+          <div class="subtitle" style="margin-top: 6px;">Shortcuts to your manager workflows.</div>
+          <div class="actions" style="justify-content: flex-start; margin-top: 10px;">
+            <button class="btn btn-primary" routerLink="/approve">Approvals</button>
+            <button class="btn" routerLink="/leave-approvals">Leave approvals</button>
+            <button class="btn" routerLink="/team">Team</button>
+            <button class="btn" routerLink="/profile">My profile</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts (Admin + Manager) -->
+    <div *ngIf="role === 'Admin' || role === 'Manager'" class="card" style="box-shadow:none; background: rgba(255,255,255,0.55); margin-bottom: 14px;">
+      <div class="card-body">
+        <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div>
+            <div class="title" style="font-size: 16px; margin:0;">Project hours</div>
+            <div class="subtitle" style="margin-top: 6px;">Total hours grouped by project.</div>
+          </div>
+          <button class="btn" type="button" (click)="loadProjectHours()" [disabled]="loadingChart()">
+            {{ loadingChart() ? 'Loading…' : 'Refresh chart' }}
+          </button>
+        </div>
+
+        <div *ngIf="chartError()" class="subtitle" style="color: rgba(171, 24, 16, 0.95); margin-bottom: 10px;">
+          {{ chartError() }}
+        </div>
+
+        <div style="position: relative; height: 320px;">
+          <canvas #projectHoursCanvas></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="error()" class="subtitle" style="color: rgba(171, 24, 16, 0.95); margin-bottom: 12px;">
+      {{ error() }}
+    </div>
+
+    <!-- Employee -->
+    <div *ngIf="role === 'Employee'" class="stack">
+      <div class="row">
+        <div class="card card-soft">
+          <div class="card-body">
+            <div class="subtitle" style="margin:0;">This week</div>
+            <div class="title" style="font-size: 26px; margin-top: 8px;">
+              {{ empWeek().totalHours }}
+            </div>
+            <div class="subtitle" style="margin-top: 6px;">
+              Hours · {{ empWeek().weekStartDate | date : 'dd-MMM' }} → {{ empWeek().weekEndDate | date : 'dd-MMM' }}
+            </div>
+            <div style="margin-top: 10px;">
+              <span
+                class="pill"
+                [class.pending]="empWeek().status === 'Draft' || empWeek().status === 'Submitted'"
+                [class.approved]="empWeek().status === 'Approved'"
+                [class.rejected]="empWeek().status === 'Rejected'"
+              >
+                {{ empWeek().status }}
+              </span>
+              <span class="subtitle" style="margin-left: 10px;">{{ empWeek().entryCount }} entries</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card-soft">
+          <div class="card-body">
+            <div class="subtitle" style="margin:0;">Leave requests</div>
+            <div class="title" style="font-size: 26px; margin-top: 8px;">
+              {{ empLeaveCounts().pending }}
+            </div>
+            <div class="subtitle" style="margin-top: 6px;">Pending</div>
+            <div class="subtitle" style="margin-top: 10px;">
+              Approved: {{ empLeaveCounts().approved }} · Rejected: {{ empLeaveCounts().rejected }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-soft" *ngIf="empLeaveBalances().length">
+        <div class="card-body">
+          <div class="row" style="justify-content: space-between; align-items: center;">
+            <div>
+              <div class="title" style="font-size: 16px; margin:0;">Leave balance ({{ empLeaveBalances()[0]?.year }})</div>
+              <div class="subtitle" style="margin-top: 6px;">Available leaves per category.</div>
+            </div>
+            <button class="btn" type="button" routerLink="/leaves">Go to leaves</button>
+          </div>
+
+          <table class="table" style="margin-top: 10px;">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Max / year</th>
+                <th>Used</th>
+                <th>Available</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let b of empLeaveBalances()">
+                <td>{{ leaveLabel(b.type) }}</td>
+                <td>{{ b.maxUnitsPerYear === null ? 'Unlimited' : b.maxUnitsPerYear }}</td>
+                <td>{{ b.usedUnits }}</td>
+                <td>{{ b.availableUnits === null ? '—' : b.availableUnits }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card card-soft">
+        <div class="card-body">
+          <div class="row" style="justify-content: space-between; align-items: center;">
+            <div>
+              <div class="title" style="font-size: 16px; margin:0;">Quick actions</div>
+              <div class="subtitle" style="margin-top: 6px;">Shortcuts to your most-used screens.</div>
+            </div>
+          </div>
+          <div class="actions" style="justify-content: flex-start; margin-top: 10px;">
+            <button class="btn btn-primary" routerLink="/timesheet">Fill timesheet</button>
+            <button class="btn" routerLink="/leaves">Apply leave</button>
+            <button class="btn" routerLink="/profile">My profile</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-soft" *ngIf="empRecentLeaves().length">
+        <div class="card-body">
+          <div class="title" style="font-size: 16px; margin:0;">Recent leave requests</div>
+          <div class="subtitle" style="margin-top: 6px;">Your last 5 requests.</div>
+
+          <table class="table" style="margin-top: 10px;">
+            <thead>
+              <tr>
+                <th>Dates</th>
+                <th>Type</th>
+                <th>Units</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let lr of empRecentLeaves()">
+                <td>{{ lr.startDate | date : 'dd-MMM-yyyy' }} → {{ lr.endDate | date : 'dd-MMM-yyyy' }}</td>
+                <td>{{ leaveLabel(lr.type) }}</td>
+                <td>{{ lr.units }}</td>
+                <td>
+                  <span class="pill" [class.pending]="lr.status === 'Pending'" [class.approved]="lr.status === 'Approved'" [class.rejected]="lr.status === 'Rejected'">
+                    {{ lr.status }}
+                  </span>
+                </td>
+                <td>{{ lr.createdAt | date : 'dd-MMM-yyyy, h:mm a' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manager quick actions moved above -->
+
+    <!-- Admin -->
+    <div *ngIf="role === 'Admin'" class="actions" style="justify-content: flex-start;">
+      <button class="btn btn-primary" routerLink="/admin/users">Users</button>
+      <button class="btn" routerLink="/admin/all">All Timesheets</button>
+    </div>
+
+    <div *ngIf="!role" class="subtitle">
+      No role found. Please sign in again to refresh your token.
+    </div>
+  </div>
+</div>
+

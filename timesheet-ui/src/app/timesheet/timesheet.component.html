@@ -1,0 +1,149 @@
+<div class="card">
+  <div class="header">
+    <div>
+      <h2 class="title">My Timesheets (Weekly)</h2>
+      <p class="subtitle">Fill your work for the selected week and submit once.</p>
+    </div>
+  </div>
+
+  <div class="card-body stack">
+    <div class="row" style="align-items: flex-end; gap: 14px;">
+      <div class="field" style="flex: 1;">
+        <label>Week (Mon → Sun)</label>
+        <input class="input" type="week" [value]="weekKey()" (change)="setWeekFromKey($any($event.target).value)" />
+        <div class="subtitle" style="margin-top: 6px;" *ngIf="weekStart()">
+          <span class="pill" [class.pending]="status() === 'Draft'" [class.active]="status() === 'Submitted'" [class.inactive]="status() === 'Rejected'">
+            {{ status() }}
+          </span>
+          <span style="opacity: 0.6; margin-left: 10px;">{{ weekStart() }} → {{ weekEnd() }}</span>
+          <span style="opacity: 0.6; margin-left: 10px;">Total: {{ totalWeekHours() }}h</span>
+        </div>
+      </div>
+      <div class="actions" style="justify-content: flex-end;">
+        <button class="btn" type="button" (click)="loadWeek()">Refresh</button>
+        <button class="btn" type="button" (click)="saveDraft()" [disabled]="status() !== 'Draft'">Save draft</button>
+        <button class="btn btn-primary" type="button" (click)="submitWeek()" [disabled]="!canSubmit()">Submit week</button>
+      </div>
+    </div>
+
+    <div
+      class="row"
+      *ngIf="entries().length"
+      style="gap: 10px; flex-wrap: wrap; align-items: center; margin-top: -6px;"
+    >
+      <div
+        class="pill"
+        *ngFor="let d of dayTotals()"
+        style="background: rgba(255,255,255,0.75);"
+      >
+        {{ d.date }}: {{ d.hours }}h
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="card" style="box-shadow: none; background: rgba(255,255,255,0.55);">
+      <div class="card-body">
+        <div class="row" style="justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 class="title" style="font-size: 16px; margin: 0;">Add row</h3>
+          <span class="subtitle" style="margin: 0;">You can add multiple rows per project.</span>
+        </div>
+
+        <div class="row" style="gap: 14px;">
+          <div class="field" style="flex: 1;">
+            <label>Project <span style="color: rgba(171, 24, 16, 0.85);">*</span></label>
+            <select class="input" name="currentProjectId" [(ngModel)]="currentProjectId" [disabled]="status() !== 'Draft'">
+              <option value="">Select a project…</option>
+              <option *ngFor="let p of projects()" [value]="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+          <div class="field" style="flex: 1;">
+            <label>Task <span style="color: rgba(171, 24, 16, 0.85);">*</span></label>
+            <select class="input" name="taskMasterId" [(ngModel)]="newRow.taskMasterId" [disabled]="status() !== 'Draft'">
+              <option value="">Select a task…</option>
+              <option *ngFor="let t of tasks()" [value]="t.id">{{ t.name }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row" style="gap: 14px;">
+          <div class="field" style="flex: 1;">
+            <label>Date <span style="color: rgba(171, 24, 16, 0.85);">*</span></label>
+            <select class="input" name="workDate" [(ngModel)]="newRow.workDate" [disabled]="status() !== 'Draft'">
+              <option value="">Select a date…</option>
+              <option *ngFor="let d of weekDays()" [value]="d.date">{{ d.label }}</option>
+            </select>
+          </div>
+          <div class="field" style="flex: 1;">
+            <label>Hours <span style="color: rgba(171, 24, 16, 0.85);">*</span></label>
+            <input
+              class="input"
+              type="number"
+              min="0"
+              step="0.25"
+              name="hours"
+              [(ngModel)]="newRow.hours"
+              [disabled]="status() !== 'Draft'"
+              placeholder="e.g. 2"
+            />
+            <div class="subtitle" style="margin-top: 6px;">Max 24 hours/day (validated on save).</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Comments</label>
+          <input class="input" name="comment" [(ngModel)]="newRow.comment" placeholder="What did you work on?" [disabled]="status() !== 'Draft'" />
+        </div>
+
+        <div *ngIf="actionError()" class="subtitle" style="color: rgba(171, 24, 16, 0.95);">
+          {{ actionError() }}
+        </div>
+
+        <div class="actions" style="justify-content: flex-start; gap: 10px; margin-top: 12px;">
+          <button class="btn" type="button" (click)="resetRow()" [disabled]="status() !== 'Draft'">Clear</button>
+          <button class="btn btn-primary" type="button" (click)="addEntry()" [disabled]="status() !== 'Draft'">
+            Add row
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div *ngIf="listError()" class="subtitle" style="color: rgba(171, 24, 16, 0.95);">
+      {{ listError() }}
+    </div>
+
+    <table class="table" *ngIf="entries().length; else empty" style="background: rgba(255,255,255,0.6); border-radius: 12px; overflow: hidden;">
+      <thead>
+        <tr>
+          <th>Project</th>
+          <th>Task</th>
+          <th>Date</th>
+          <th>Hours</th>
+          <th>Comments</th>
+          <th style="width: 120px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let e of entries(); let i = index">
+          <td>{{ projectName(e.projectId) }}</td>
+          <td>{{ taskName(e.taskMasterId) }}</td>
+          <td>{{ e.workDate | date: 'dd-MMM-yyyy' }}</td>
+          <td style="font-weight: 800;">{{ e.hours }}</td>
+          <td style="max-width: 360px;">{{ e.comment || '—' }}</td>
+          <td>
+            <button class="btn btn-danger" type="button" (click)="removeEntry(i)" [disabled]="status() !== 'Draft'" style="padding: 8px 12px;">
+              Remove
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <ng-template #empty>
+      <div class="subtitle">No rows yet for this week. Add entries above.</div>
+    </ng-template>
+  </div>
+</div>
+
