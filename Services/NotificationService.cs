@@ -16,6 +16,16 @@ namespace TimesheetAPI.Services
             _email = email;
         }
 
+        public string GetUserDisplayName(int userId)
+        {
+            if (userId <= 0) return "Unknown user";
+            var name = _context.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.Name)
+                .FirstOrDefault();
+            return string.IsNullOrWhiteSpace(name) ? $"User {userId}" : name.Trim();
+        }
+
         public void Create(int userId, string message, string? emailSubject = null)
         {
             if (userId <= 0) return;

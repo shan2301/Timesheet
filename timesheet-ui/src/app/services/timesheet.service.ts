@@ -70,5 +70,10 @@ export class TimesheetService {
   submitWeek(weekStartDate: string) {
     return this.http.post(`${this.weeklyUrl}/submit?weekStartDate=${encodeURIComponent(weekStartDate)}`, {});
   }
+
+  /** Legacy daily timesheet rows; scope depends on role (Bearer via interceptor). */
+  exportTimesheetsExcel() {
+    return this.http.get(`${this.apiUrl}/export`, { responseType: 'blob' });
+  }
 }
 

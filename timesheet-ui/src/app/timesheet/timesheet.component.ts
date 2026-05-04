@@ -39,6 +39,7 @@ export class TimesheetComponent implements OnInit {
   readonly entries = signal<WeekEntry[]>([]);
   readonly listError = signal<string | null>(null);
   readonly actionError = signal<string | null>(null);
+  readonly exportBusy = signal(false);
 
   currentProjectId: string | number = '';
   newRow: { taskMasterId: string | number; workDate: string; hours: number; comment: string } = {
@@ -360,6 +361,27 @@ export class TimesheetComponent implements OnInit {
     this.tsService.submitWeek(ws).subscribe({
       next: () => this.loadWeek(),
       error: (err) => this.actionError.set(err?.error?.message || 'Failed to submit week.'),
+    });
+  }
+
+  /** Legacy daily `Timesheet` rows (not the weekly grid). Uses JWT via HttpClient interceptor. */
+  exportDailyTimesheetsExcel() {
+    this.actionError.set(null);
+    this.exportBusy.set(true);
+    this.tsService.exportTimesheetsExcel().subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Timesheets-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.exportBusy.set(false);
+      },
+      error: () => {
+        this.actionError.set('Could not export Excel. Sign in again or try later.');
+        this.exportBusy.set(false);
+      },
     });
   }
 }

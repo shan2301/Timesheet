@@ -53,9 +53,14 @@ function normRow(raw: any): ApprovalRow {
       </div>
 
       <div class="card-body stack">
-        <div class="actions" style="justify-content: space-between;">
+        <div class="actions" style="justify-content: space-between; flex-wrap: wrap; gap: 10px;">
           <div class="subtitle" style="margin:0;">{{ rows().length }} timesheets</div>
-          <button class="btn" type="button" (click)="load()" [disabled]="busy()">Refresh</button>
+          <div class="actions" style="gap: 10px;">
+            <button class="btn" type="button" (click)="exportDailyTimesheetsExcel()" [disabled]="exportBusy()">
+              {{ exportBusy() ? 'Exporting…' : 'Export Excel' }}
+            </button>
+            <button class="btn" type="button" (click)="load()" [disabled]="busy()">Refresh</button>
+          </div>
         </div>
 
         <div *ngIf="error()" class="subtitle" style="color: rgba(171, 24, 16, 0.95);">
@@ -113,6 +118,7 @@ function normRow(raw: any): ApprovalRow {
 export class ApproveComponent implements OnInit {
   readonly rows = signal<ApprovalRow[]>([]);
   readonly busy = signal(false);
+  readonly exportBusy = signal(false);
   readonly error = signal<string | null>(null);
 
   constructor(private ts: TimesheetService) {}
@@ -152,6 +158,27 @@ export class ApproveComponent implements OnInit {
       error: (err) => {
         this.error.set(err?.error?.message || 'Failed to reject.');
         this.busy.set(false);
+      },
+    });
+  }
+
+  /** Legacy daily timesheet rows in manager scope (weekly approvals stay in the table above). */
+  exportDailyTimesheetsExcel() {
+    this.error.set(null);
+    this.exportBusy.set(true);
+    this.ts.exportTimesheetsExcel().subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Timesheets-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.exportBusy.set(false);
+      },
+      error: () => {
+        this.error.set('Could not export Excel.');
+        this.exportBusy.set(false);
       },
     });
   }

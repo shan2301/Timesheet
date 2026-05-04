@@ -19,6 +19,7 @@ namespace TimesheetAPI.Data
         public DbSet<WeeklyTimesheet> WeeklyTimesheets { get; set; }
         public DbSet<WeeklyTimesheetEntry> WeeklyTimesheetEntries { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<UserProject> UserProjects { get; set; }
         public DbSet<UserDepartment> UserDepartments { get; set; }
 
@@ -85,6 +86,14 @@ namespace TimesheetAPI.Data
                 .HasIndex(lp => lp.Type)
                 .IsUnique();
 
+            modelBuilder.Entity<LeavePolicy>()
+                .Property(lp => lp.MaxUnitsPerYear)
+                .HasPrecision(10, 2);
+
+            modelBuilder.Entity<LeaveRequest>()
+                .Property(lr => lr.Units)
+                .HasPrecision(10, 2);
+
             modelBuilder.Entity<WeeklyTimesheet>()
                 .HasIndex(x => new { x.UserId, x.WeekStartDate })
                 .IsUnique();
@@ -111,8 +120,15 @@ namespace TimesheetAPI.Data
                 .HasIndex(e => new { e.WeeklyTimesheetId, e.ProjectId, e.TaskMasterId, e.WorkDate })
                 .IsUnique();
 
+            modelBuilder.Entity<WeeklyTimesheetEntry>()
+                .Property(e => e.Hours)
+                .HasPrecision(10, 2);
+
             modelBuilder.Entity<Notification>()
                 .HasIndex(n => new { n.UserId, n.IsRead, n.CreatedDate });
+
+            modelBuilder.Entity<AuditLog>()
+                .HasIndex(a => new { a.Entity, a.EntityId, a.CreatedDate });
         }
     }
 }

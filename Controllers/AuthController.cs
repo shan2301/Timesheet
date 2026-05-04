@@ -210,6 +210,8 @@ namespace TimesheetAPI.Controllers
         [HttpPut("update-user-meta/{id:int}")]
         public IActionResult UpdateUserMeta(int id, [FromBody] UpdateUserMetaDto dto)
         {
+            var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
             var user = _context.Users.FirstOrDefault(u => u.Id == id);
             if (user == null)
                 return NotFound(new { message = "User not found" });
@@ -237,6 +239,16 @@ namespace TimesheetAPI.Controllers
                 user.Designation = string.IsNullOrWhiteSpace(dto.Designation) ? null : dto.Designation.Trim();
             }
             user.ManagerId = user.Role == Roles.Employee ? dto.ManagerId : null;
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = "Updated",
+                PerformedBy = adminId,
+                Entity = "User",
+                EntityId = user.Id,
+                Details = "Updated user metadata (name, contact, designation, manager as applicable)"
+            });
+
             _context.SaveChanges();
 
             return Ok(new { user.Id, user.Name, user.Email, user.ContactNumber, user.Designation, user.ManagerId });
@@ -246,6 +258,8 @@ namespace TimesheetAPI.Controllers
         [HttpPut("update-role/{id}")]
         public IActionResult UpdateRole(int id, [FromBody] string role)
         {
+            var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
             var allowedRoles = new[] { Roles.Employee, Roles.Manager, Roles.Admin };
 
             if (!allowedRoles.Contains(role))
@@ -256,7 +270,18 @@ namespace TimesheetAPI.Controllers
             if (user == null)
                 return NotFound();
 
+            var previousRole = user.Role;
             user.Role = role;
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = "Updated",
+                PerformedBy = adminId,
+                Entity = "User",
+                EntityId = user.Id,
+                Details = $"Role: {previousRole} -> {role}"
+            });
+
             _context.SaveChanges();
 
             return Ok(user);
@@ -266,12 +291,25 @@ namespace TimesheetAPI.Controllers
         [HttpPut("toggle-user/{id}")]
         public IActionResult ToggleUser(int id)
         {
+            var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
             var user = _context.Users.FirstOrDefault(u => u.Id == id);
 
             if (user == null)
                 return NotFound();
 
+            var previous = user.IsActive;
             user.IsActive = !user.IsActive;
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = "Updated",
+                PerformedBy = adminId,
+                Entity = "User",
+                EntityId = user.Id,
+                Details = $"IsActive: {previous} -> {user.IsActive}"
+            });
+
             _context.SaveChanges();
 
             return Ok(new { user.Id, user.IsActive });

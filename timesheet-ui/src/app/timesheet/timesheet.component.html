@@ -20,6 +20,9 @@
         </div>
       </div>
       <div class="actions" style="justify-content: flex-end;">
+        <button class="btn" type="button" (click)="exportDailyTimesheetsExcel()" [disabled]="exportBusy()">
+          {{ exportBusy() ? 'Exporting…' : 'Export Excel' }}
+        </button>
         <button class="btn" type="button" (click)="loadWeek()">Refresh</button>
         <button class="btn" type="button" (click)="saveDraft()" [disabled]="status() !== 'Draft'">Save draft</button>
         <button class="btn btn-primary" type="button" (click)="submitWeek()" [disabled]="!canSubmit()">Submit week</button>

@@ -221,9 +221,20 @@ namespace TimesheetAPI.Controllers
                     return Forbid();
             }
 
+            var previousStatus = w.Status;
             w.Status = nextStatus;
             w.ApprovedBy = reviewerId;
             w.ApprovedOn = DateTime.UtcNow;
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = nextStatus,
+                PerformedBy = reviewerId,
+                Entity = "WeeklyTimesheet",
+                EntityId = w.Id,
+                Details =
+                    $"Status: {previousStatus} -> {nextStatus}; EmployeeUserId={w.UserId}; WeekStart={w.WeekStartDate:yyyy-MM-dd}"
+            });
 
             _context.SaveChanges();
 
@@ -407,7 +418,8 @@ namespace TimesheetAPI.Controllers
             _context.SaveChanges();
 
             var managers = _notifications.GetManagersForEmployee(userId);
-            _notifications.CreateMany(managers, $"New timesheet submitted by User {userId} for week starting {weekStart:yyyy-MM-dd}");
+            var who = _notifications.GetUserDisplayName(userId);
+            _notifications.CreateMany(managers, $"New timesheet submitted by {who} for week starting {weekStart:yyyy-MM-dd}");
 
             return Ok(new { w.Id, w.Status, w.SubmittedAt });
         }
