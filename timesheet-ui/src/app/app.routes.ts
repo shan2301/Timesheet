@@ -12,9 +12,12 @@ import { LeaveApprovalDetailComponent } from './leave-approval-detail/leave-appr
 import { LeaveApprovalsComponent } from './leave-approvals/leave-approvals.component';
 import { LeavesComponent } from './leaves/leaves.component';
 import { LoginComponent } from './login/login.component';
+import { NotificationsComponent } from './notifications/notifications.component';
 import { ProfileComponent } from './profile/profile.component';
 import { TeamComponent } from './team/team.component';
 import { TimesheetComponent } from './timesheet/timesheet.component';
+import { TimesheetDetailComponent } from './timesheet-detail/timesheet-detail.component';
+import { TimesheetListComponent } from './timesheet-list/timesheet-list.component';
 import { WeeklyApprovalDetailComponent } from './weekly-approval-detail/weekly-approval-detail.component';
 import { adminGuard } from './guards/admin.guard';
 import { authGuard } from './guards/auth.guard';
@@ -30,8 +33,18 @@ export const routes: Routes = [
     canActivate: [authGuard]
   },
   {
-    path: 'timesheet',
+    path: 'timesheets',
+    component: TimesheetListComponent,
+    canActivate: [employeeGuard]
+  },
+  {
+    path: 'timesheet/create',
     component: TimesheetComponent,
+    canActivate: [employeeGuard]
+  },
+  {
+    path: 'timesheet/view/:id',
+    component: TimesheetDetailComponent,
     canActivate: [employeeGuard]
   },
   {
@@ -58,6 +71,11 @@ export const routes: Routes = [
     path: 'profile',
     component: ProfileComponent,
     canActivate: [timesheetGuard]
+  },
+  {
+    path: 'notifications',
+    component: NotificationsComponent,
+    canActivate: [authGuard]
   },
   {
     path: 'leave-approvals',

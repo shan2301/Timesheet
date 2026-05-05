@@ -5,6 +5,7 @@ using System.Security.Claims;
 using TimesheetAPI.Data;
 using TimesheetAPI.Models;
 using TimesheetAPI.Security;
+using TimesheetAPI.Services;
 
 namespace TimesheetAPI.Controllers
 {
@@ -14,10 +15,12 @@ namespace TimesheetAPI.Controllers
     public class LeaveController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly NotificationService _notifications;
 
-        public LeaveController(AppDbContext context)
+        public LeaveController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
+            _notifications = notifications;
         }
 
         private static LeaveType NormalizePolicyType(LeaveType type)
@@ -141,6 +144,10 @@ namespace TimesheetAPI.Controllers
 
             _context.LeaveRequests.Add(leave);
             _context.SaveChanges();
+
+            var managers = _notifications.GetManagersForEmployee(userId);
+            var who = _notifications.GetUserDisplayName(userId);
+            _notifications.CreateMany(managers, $"New leave request submitted by {who} ({policyType}) {start:yyyy-MM-dd} to {end:yyyy-MM-dd}");
 
             return Ok(leave);
         }
@@ -401,13 +408,33 @@ namespace TimesheetAPI.Controllers
             if (nextStatus == "Rejected" && string.IsNullOrWhiteSpace(rejectionReason))
                 return BadRequest(new { message = "Rejection reason is required" });
 
+            var previousStatus = leave.Status;
             leave.Status = nextStatus;
             leave.ReviewedById = reviewerId;
             leave.ReviewedAt = DateTime.UtcNow;
             leave.ReviewerComment = comment;
             leave.RejectionReason = nextStatus == "Rejected" ? rejectionReason : null;
 
+            var details =
+                $"Status: {previousStatus} -> {nextStatus}; LeaveType={leave.Type}; EmployeeUserId={leave.UserId}";
+            if (nextStatus == "Rejected" && !string.IsNullOrEmpty(rejectionReason))
+            {
+                var snippet = rejectionReason.Length > 500 ? rejectionReason[..500] + "…" : rejectionReason;
+                details += $"; RejectionReason={snippet}";
+            }
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = nextStatus,
+                PerformedBy = reviewerId,
+                Entity = "LeaveRequest",
+                EntityId = leave.Id,
+                Details = details
+            });
+
             _context.SaveChanges();
+
+            _notifications.Create(leave.UserId, $"Your leave request #{leave.Id} was {leave.Status}");
 
             return Ok(new
             {
