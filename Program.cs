@@ -148,11 +148,10 @@ if (app.Environment.IsDevelopment())
 }
 
 // "http" launch profile has no HTTPS URL; redirect middleware then logs a warning.
-if (!app.Environment.IsDevelopment())
+if (!app.Environment.IsProduction())
 {
-    //app.UseHttpsRedirection();
+    app.UseHttpsRedirection();
 }
-
 app.UseRouting();
 
 app.UseCors("AllowAll");
