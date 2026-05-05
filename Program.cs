@@ -159,8 +159,9 @@ app.UseCors("AllowAll");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers().RequireCors("AllowAll"); // ✅ IMPORTANT
+app.MapControllers();
 
 app.MapGet("/", () => "Timesheet API is live");
+app.MapGet("/healthz", () => Results.Ok("healthy"));
 
 app.Run();
