@@ -53,9 +53,19 @@ function normRow(raw: any): ApprovalRow {
       </div>
 
       <div class="card-body stack">
-        <div class="actions" style="justify-content: space-between;">
+        <div class="actions" style="justify-content: space-between; flex-wrap: wrap; gap: 10px;">
           <div class="subtitle" style="margin:0;">{{ rows().length }} timesheets</div>
-          <button class="btn" type="button" (click)="load()" [disabled]="busy()">Refresh</button>
+          <div class="actions" style="gap: 10px;">
+            <button
+              class="btn"
+              type="button"
+              (click)="exportSelectedWeeklyExcel()"
+              [disabled]="exportBusy() || approvedCount() === 0"
+            >
+              {{ exportBusy() ? 'Exporting…' : 'Export Excel' }}
+            </button>
+            <button class="btn" type="button" (click)="load()" [disabled]="busy()">Refresh</button>
+          </div>
         </div>
 
         <div *ngIf="error()" class="subtitle" style="color: rgba(171, 24, 16, 0.95);">
@@ -113,7 +123,9 @@ function normRow(raw: any): ApprovalRow {
 export class ApproveComponent implements OnInit {
   readonly rows = signal<ApprovalRow[]>([]);
   readonly busy = signal(false);
+  readonly exportBusy = signal(false);
   readonly error = signal<string | null>(null);
+  readonly approvedCount = signal(0);
 
   constructor(private ts: TimesheetService) {}
 
@@ -125,10 +137,15 @@ export class ApproveComponent implements OnInit {
     this.busy.set(true);
     this.error.set(null);
     this.ts.getManagerWeeklyTimesheets().subscribe({
-      next: (res) => this.rows.set(parseList(res).map(normRow)),
+      next: (res) => {
+        const list = parseList(res).map(normRow);
+        this.rows.set(list);
+        this.approvedCount.set(list.filter((x) => x.status === 'Approved').length);
+      },
       error: (err) => {
         this.error.set(err?.error?.message || 'Failed to load timesheets.');
         this.rows.set([]);
+        this.approvedCount.set(0);
       },
       complete: () => this.busy.set(false),
     });
@@ -152,6 +169,33 @@ export class ApproveComponent implements OnInit {
       error: (err) => {
         this.error.set(err?.error?.message || 'Failed to reject.');
         this.busy.set(false);
+      },
+    });
+  }
+
+  /** Export the first row (most recent) weekly submission shown in list. */
+  exportSelectedWeeklyExcel() {
+    this.error.set(null);
+    this.exportBusy.set(true);
+    const firstApproved = this.rows().find((x) => x.status === 'Approved');
+    const id = firstApproved?.id || 0;
+    if (!id) {
+      this.exportBusy.set(false);
+      return;
+    }
+    this.ts.exportWeeklyById(id).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `WeeklyTimesheet-${id}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.exportBusy.set(false);
+      },
+      error: () => {
+        this.error.set('Could not export Excel.');
+        this.exportBusy.set(false);
       },
     });
   }

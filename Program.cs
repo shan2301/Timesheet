@@ -1,11 +1,16 @@
+using OfficeOpenXml;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using TimesheetAPI.Data;
 using TimesheetAPI.Models;
 using TimesheetAPI.Security;
+using TimesheetAPI.Services;
 using System.Text;
 using System.Text.Json.Serialization;
+
+// EPPlus 5+ requires an explicit license context (use Commercial for commercial products).
+ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -75,6 +80,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<NotificationService>();
 
 // Database connection
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -140,7 +147,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// "http" launch profile has no HTTPS URL; redirect middleware then logs a warning.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 app.UseRouting();
 

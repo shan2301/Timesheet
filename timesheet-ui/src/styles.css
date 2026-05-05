@@ -213,6 +213,62 @@ body {
   transform: translateY(-1px);
 }
 
+.bell-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: var(--shadow-soft);
+  cursor: pointer;
+  font-weight: 800;
+  color: rgba(0, 0, 0, 0.82);
+  user-select: none;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.bell-btn:hover {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.notif-item {
+  text-align: left;
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.notif-item.unread,
+.notif-row.unread {
+  background: rgba(0, 113, 193, 0.10);
+  border: 1px solid rgba(0, 113, 193, 0.18);
+}
+
+.notif-msg {
+  font-weight: 800;
+  color: rgba(0, 0, 0, 0.85);
+  white-space: normal;
+}
+
 .brand-name {
   font-size: 20px;
   font-weight: 750;
@@ -239,6 +295,19 @@ body {
 
 .card-body {
   padding: 22px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.card-header > .actions {
+  justify-content: flex-end;
 }
 
 .header {

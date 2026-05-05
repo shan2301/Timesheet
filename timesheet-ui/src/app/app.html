@@ -17,7 +17,7 @@
         <a
           class="navlink"
           *ngIf="normalizedRole() === 'Employee'"
-          routerLink="/timesheet"
+          routerLink="/timesheets"
           routerLinkActive="active"
         >
           My Timesheets
@@ -91,6 +91,36 @@
       <div class="topbar-right">
         <ng-container *ngIf="isLoggedIn()">
           <span class="pill">{{ normalizedRole() || role() }}</span>
+
+          <div class="navdropdown">
+            <button class="bell-btn" type="button" aria-label="Notifications">
+              Notifications
+              <span class="badge" *ngIf="notifCount() > 0">{{ notifCount() }}</span>
+            </button>
+            <div class="navdropdown-menu" style="left: auto; right: 0; min-width: 360px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px;">
+                <strong>Notifications</strong>
+                <button class="btn btn-link" type="button" (click)="markAllNotifsRead()" [disabled]="notifCount() === 0">
+                  Mark all read
+                </button>
+              </div>
+              <div *ngIf="notifItems().length === 0" style="padding: 10px; color: #667085;">
+                No notifications yet.
+              </div>
+              <ng-container *ngFor="let n of notifItems()">
+                <button
+                  type="button"
+                  class="navdropdown-item notif-item"
+                  (click)="markNotifRead(n.id)"
+                  [class.unread]="!n.isRead"
+                >
+                  <div class="notif-msg">{{ n.message }}</div>
+                  <div class="muted">{{ n.createdDate | date: 'medium' }}</div>
+                </button>
+              </ng-container>
+              <a class="navdropdown-item" routerLink="/notifications" routerLinkActive="active">View all</a>
+            </div>
+          </div>
 
           <div class="navdropdown" *ngIf="normalizedRole() === 'Employee' || normalizedRole() === 'Manager'; else adminLogout">
             <button class="avatar-btn" type="button" aria-label="Profile menu">

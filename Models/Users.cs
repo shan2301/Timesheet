@@ -21,6 +21,10 @@ namespace TimesheetAPI.Models
 
         public string? PasswordHash { get; set; } // stored
 
+        public string Role { get; set; } = Security.Roles.Employee; // Admin | Manager | Employee
+
+        public bool IsActive { get; set; } = true;
+
 
         public string? Designation { get; set; }
 

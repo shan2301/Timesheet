@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OfficeOpenXml;
 using System.Security.Claims;
 using TimesheetAPI.Data;
 using TimesheetAPI.Models;
 using TimesheetAPI.Security;
+using TimesheetAPI.Services;
 
 namespace TimesheetAPI.Controllers
 {
@@ -14,10 +16,12 @@ namespace TimesheetAPI.Controllers
     public class WeeklyTimesheetController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly NotificationService _notifications;
 
-        public WeeklyTimesheetController(AppDbContext context)
+        public WeeklyTimesheetController(AppDbContext context, NotificationService notifications)
         {
             _context = context;
+            _notifications = notifications;
         }
 
         private static DateTime NormalizeToMonday(DateTime date)
@@ -139,6 +143,9 @@ namespace TimesheetAPI.Controllers
             if (w == null)
                 return NotFound(new { message = "Weekly timesheet not found" });
 
+            if (w.Status != "Approved")
+                return BadRequest(new { message = "Only approved weekly timesheets can be exported" });
+
             if (User.IsInRole(Roles.Employee) && w.UserId != callerId)
                 return Forbid();
 
@@ -197,6 +204,218 @@ namespace TimesheetAPI.Controllers
             });
         }
 
+        /// <summary>
+        /// Export a weekly submission by id (Employee: own; Manager: scoped; Admin: any).
+        /// </summary>
+        [Authorize(Roles = Roles.AdminOrManagerOrEmployee)]
+        [HttpGet("export/{id:int}")]
+        public IActionResult ExportById(int id)
+        {
+            var callerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            var w = _context.WeeklyTimesheets
+                .AsNoTracking()
+                .FirstOrDefault(x => x.Id == id);
+
+            if (w == null)
+                return NotFound(new { message = "Weekly timesheet not found" });
+
+            if (User.IsInRole(Roles.Employee) && w.UserId != callerId)
+                return Forbid();
+
+            if (User.IsInRole(Roles.Manager) && !User.IsInRole(Roles.Admin))
+            {
+                var allowed = GetManagerScopedEmployeeIds(callerId);
+                if (allowed.Count == 0 || !allowed.Contains(w.UserId))
+                    return Forbid();
+            }
+
+            var data = (
+                from e in _context.WeeklyTimesheetEntries.AsNoTracking()
+                join p in _context.Projects.AsNoTracking() on e.ProjectId equals p.Id
+                join t in _context.TaskMasters.AsNoTracking() on e.TaskMasterId equals t.Id
+                where e.WeeklyTimesheetId == id
+                orderby e.WorkDate, p.Name, t.Name
+                select new
+                {
+                    e.WorkDate,
+                    Project = p.Name,
+                    Task = t.Name,
+                    e.Hours,
+                    Comment = e.Comment ?? string.Empty
+                }
+            ).ToList();
+
+            var header = (
+                from wt in _context.WeeklyTimesheets.AsNoTracking()
+                join u in _context.Users.AsNoTracking() on wt.UserId equals u.Id
+                where wt.Id == id
+                select new
+                {
+                    wt.Id,
+                    wt.Status,
+                    userId = u.Id,
+                    userName = u.Name,
+                    userEmail = u.Email,
+                    wt.WeekStartDate
+                }
+            ).FirstOrDefault();
+
+            using var package = new ExcelPackage();
+            var sheet = package.Workbook.Worksheets.Add("WeeklyTimesheet");
+
+            sheet.Cells[1, 1].Value = "SubmissionId";
+            sheet.Cells[1, 2].Value = "Employee";
+            sheet.Cells[1, 3].Value = "Email";
+            sheet.Cells[1, 4].Value = "WeekStart";
+            sheet.Cells[1, 5].Value = "WeekEnd";
+            sheet.Cells[1, 6].Value = "Status";
+
+            if (header != null)
+            {
+                sheet.Cells[2, 1].Value = header.Id;
+                sheet.Cells[2, 2].Value = header.userName;
+                sheet.Cells[2, 3].Value = header.userEmail;
+                sheet.Cells[2, 4].Value = header.WeekStartDate;
+                sheet.Cells[2, 5].Value = header.WeekStartDate.AddDays(6);
+                sheet.Cells[2, 6].Value = header.Status;
+            }
+
+            var startRow = 4;
+            sheet.Cells[startRow, 1].Value = "Date";
+            sheet.Cells[startRow, 2].Value = "Project";
+            sheet.Cells[startRow, 3].Value = "Task";
+            sheet.Cells[startRow, 4].Value = "Hours";
+            sheet.Cells[startRow, 5].Value = "Comments";
+
+            var row = startRow + 1;
+            foreach (var e in data)
+            {
+                sheet.Cells[row, 1].Value = e.WorkDate;
+                sheet.Cells[row, 2].Value = e.Project;
+                sheet.Cells[row, 3].Value = e.Task;
+                sheet.Cells[row, 4].Value = e.Hours;
+                sheet.Cells[row, 5].Value = e.Comment;
+                row++;
+            }
+
+            sheet.Cells[1, 1, 1, 6].Style.Font.Bold = true;
+            sheet.Cells[startRow, 1, startRow, 5].Style.Font.Bold = true;
+
+            var bytes = package.GetAsByteArray();
+            var fileName = $"WeeklyTimesheet-{id}.xlsx";
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+
+        /// <summary>
+        /// Employee convenience export: export the selected week (by weekStartDate) for the current user.
+        /// </summary>
+        [Authorize(Roles = Roles.Employee)]
+        [HttpGet("export")]
+        public IActionResult ExportMyWeek([FromQuery] DateTime weekStartDate)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var weekStart = NormalizeToMonday(weekStartDate);
+
+            var w = _context.WeeklyTimesheets
+                .AsNoTracking()
+                .FirstOrDefault(x => x.UserId == userId && x.WeekStartDate == weekStart);
+
+            if (w == null)
+                return BadRequest(new { message = "No weekly timesheet found for this week" });
+
+            if (w.Status != "Approved")
+                return BadRequest(new { message = "Only approved weekly timesheets can be exported" });
+
+            return ExportById(w.Id);
+        }
+
+        /// <summary>
+        /// Employee: export a consolidated Excel for a given month/year (approved entries only).
+        /// Filters by entry WorkDate within the month and WeeklyTimesheet.Status == Approved.
+        /// </summary>
+        [Authorize(Roles = Roles.Employee)]
+        [HttpGet("export-month")]
+        public IActionResult ExportMyMonth([FromQuery] int year, [FromQuery] int month)
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            if (year < 2000 || year > 2100) return BadRequest(new { message = "Invalid year" });
+            if (month < 1 || month > 12) return BadRequest(new { message = "Invalid month" });
+
+            var start = new DateTime(year, month, 1);
+            var end = start.AddMonths(1).AddDays(-1);
+
+            var rows = (
+                from wt in _context.WeeklyTimesheets.AsNoTracking()
+                join e in _context.WeeklyTimesheetEntries.AsNoTracking() on wt.Id equals e.WeeklyTimesheetId
+                join p in _context.Projects.AsNoTracking() on e.ProjectId equals p.Id
+                join t in _context.TaskMasters.AsNoTracking() on e.TaskMasterId equals t.Id
+                where wt.UserId == userId &&
+                      wt.Status == "Approved" &&
+                      e.WorkDate.Date >= start.Date && e.WorkDate.Date <= end.Date
+                orderby e.WorkDate, p.Name, t.Name
+                select new
+                {
+                    SubmissionId = wt.Id,
+                    WeekStart = wt.WeekStartDate,
+                    WorkDate = e.WorkDate,
+                    Project = p.Name,
+                    Task = t.Name,
+                    e.Hours,
+                    Comment = e.Comment ?? string.Empty
+                }
+            ).ToList();
+
+            if (rows.Count == 0)
+                return BadRequest(new { message = "No approved entries found for this month" });
+
+            using var package = new ExcelPackage();
+            var sheet = package.Workbook.Worksheets.Add("Month");
+
+            var employeeName = _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.Name)
+                .FirstOrDefault() ?? $"User {userId}";
+
+            sheet.Cells[1, 1].Value = "Month";
+            sheet.Cells[1, 2].Value = "EmployeeId";
+            sheet.Cells[1, 3].Value = "EmployeeName";
+            sheet.Cells[2, 1].Value = $"{start:yyyy-MM}";
+            sheet.Cells[2, 2].Value = userId;
+            sheet.Cells[2, 3].Value = employeeName;
+
+            var startRow = 4;
+            sheet.Cells[startRow, 1].Value = "Date";
+            sheet.Cells[startRow, 2].Value = "Project";
+            sheet.Cells[startRow, 3].Value = "Task";
+            sheet.Cells[startRow, 4].Value = "Hours";
+            sheet.Cells[startRow, 5].Value = "Comments";
+            sheet.Cells[startRow, 6].Value = "SubmissionId";
+            sheet.Cells[startRow, 7].Value = "WeekStart";
+
+            var r = startRow + 1;
+            foreach (var x in rows)
+            {
+                sheet.Cells[r, 1].Value = x.WorkDate;
+                sheet.Cells[r, 2].Value = x.Project;
+                sheet.Cells[r, 3].Value = x.Task;
+                sheet.Cells[r, 4].Value = x.Hours;
+                sheet.Cells[r, 5].Value = x.Comment;
+                sheet.Cells[r, 6].Value = x.SubmissionId;
+                sheet.Cells[r, 7].Value = x.WeekStart;
+                r++;
+            }
+
+            sheet.Cells[1, 1, 1, 3].Style.Font.Bold = true;
+            sheet.Cells[startRow, 1, startRow, 7].Style.Font.Bold = true;
+
+            var bytes = package.GetAsByteArray();
+            var fileName = $"Timesheet-{start:yyyy-MM}.xlsx";
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        }
+
         private IActionResult Review(int id, string nextStatus)
         {
             var reviewerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
@@ -218,11 +437,24 @@ namespace TimesheetAPI.Controllers
                     return Forbid();
             }
 
+            var previousStatus = w.Status;
             w.Status = nextStatus;
             w.ApprovedBy = reviewerId;
             w.ApprovedOn = DateTime.UtcNow;
 
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = nextStatus,
+                PerformedBy = reviewerId,
+                Entity = "WeeklyTimesheet",
+                EntityId = w.Id,
+                Details =
+                    $"Status: {previousStatus} -> {nextStatus}; EmployeeUserId={w.UserId}; WeekStart={w.WeekStartDate:yyyy-MM-dd}"
+            });
+
             _context.SaveChanges();
+
+            _notifications.Create(w.UserId, $"Your timesheet submission #{w.Id} was {w.Status}");
 
             return Ok(new { w.Id, w.Status, w.ApprovedBy, w.ApprovedOn });
         }
@@ -277,6 +509,33 @@ namespace TimesheetAPI.Controllers
                 w.ApprovedOn,
                 entries
             });
+        }
+
+        /// <summary>
+        /// Employee: list all weekly timesheets (Draft/Submitted/Approved/Rejected) with key dates.
+        /// </summary>
+        [Authorize(Roles = Roles.Employee)]
+        [HttpGet("mine")]
+        public IActionResult Mine()
+        {
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            var list = _context.WeeklyTimesheets
+                .AsNoTracking()
+                .Where(w => w.UserId == userId)
+                .OrderByDescending(w => w.WeekStartDate)
+                .Select(w => new
+                {
+                    w.Id,
+                    w.WeekStartDate,
+                    weekEndDate = w.WeekStartDate.AddDays(6),
+                    w.Status,
+                    w.SubmittedAt,
+                    w.ApprovedOn
+                })
+                .ToList();
+
+            return Ok(list);
         }
 
         [Authorize(Roles = Roles.Employee)]
@@ -400,6 +659,10 @@ namespace TimesheetAPI.Controllers
             w.SubmittedAt = DateTime.UtcNow;
 
             _context.SaveChanges();
+
+            var managers = _notifications.GetManagersForEmployee(userId);
+            var who = _notifications.GetUserDisplayName(userId);
+            _notifications.CreateMany(managers, $"New timesheet submitted by {who} for week starting {weekStart:yyyy-MM-dd}");
 
             return Ok(new { w.Id, w.Status, w.SubmittedAt });
         }

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OfficeOpenXml;
 using TimesheetAPI.Data;
 using TimesheetAPI.Models;
 using TimesheetAPI.Security;
@@ -176,6 +177,138 @@ namespace TimesheetAPI.Controllers
         }
 
         /// <summary>
+        /// Same department scope as <see cref="GetManagerTimesheets"/> for non-admin managers.
+        /// Returns null when the manager has no mappable departments/projects.
+        /// </summary>
+        private IQueryable<Timesheet>? ManagerTimesheetsForExport(int managerId)
+        {
+            var deptIds = _context.UserDepartments
+                .AsNoTracking()
+                .Where(ud => ud.UserId == managerId)
+                .Select(ud => ud.DepartmentId)
+                .Distinct()
+                .ToList();
+
+            if (deptIds.Count == 0)
+                return null;
+
+            var userIds = _context.UserDepartments
+                .AsNoTracking()
+                .Where(ud => deptIds.Contains(ud.DepartmentId))
+                .Select(ud => ud.UserId)
+                .Distinct()
+                .ToList();
+
+            var projectIds = _context.Projects
+                .AsNoTracking()
+                .Where(p => deptIds.Contains(p.DepartmentId))
+                .Select(p => p.Id)
+                .Distinct()
+                .ToList();
+
+            if (projectIds.Count == 0)
+                return null;
+
+            return _context.Timesheets
+                .AsNoTracking()
+                .Where(t => userIds.Contains(t.UserId) && projectIds.Contains(t.ProjectId));
+        }
+
+        /// <summary>
+        /// Export legacy (daily) timesheet rows to Excel. Admin: all; Manager: department scope;
+        /// Employee: own rows only.
+        /// </summary>
+        [Authorize(Roles = Roles.AdminOrManagerOrEmployee)]
+        [HttpGet("export")]
+        public IActionResult Export()
+        {
+            var callerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            IQueryable<Timesheet> baseQuery;
+            if (User.IsInRole(Roles.Admin))
+            {
+                baseQuery = _context.Timesheets.AsNoTracking();
+            }
+            else if (User.IsInRole(Roles.Manager))
+            {
+                var scoped = ManagerTimesheetsForExport(callerId);
+                baseQuery = scoped ?? _context.Timesheets.AsNoTracking().Where(t => false);
+            }
+            else
+            {
+                baseQuery = _context.Timesheets.AsNoTracking().Where(t => t.UserId == callerId);
+            }
+
+            // Export only approved rows.
+            baseQuery = baseQuery.Where(t => t.Status == "Approved");
+
+            var data = (
+                from t in baseQuery
+                join u in _context.Users.AsNoTracking() on t.UserId equals u.Id
+                join p in _context.Projects.AsNoTracking() on t.ProjectId equals p.Id
+                orderby t.Date descending, t.Id
+                select new
+                {
+                    t.Id,
+                    t.UserId,
+                    UserName = u.Name,
+                    t.ProjectId,
+                    ProjectName = p.Name,
+                    t.Date,
+                    t.HoursWorked,
+                    t.Description,
+                    t.Status,
+                    t.ApprovedBy,
+                    t.ApprovedOn
+                }
+            ).ToList();
+
+            using var package = new ExcelPackage();
+            var sheet = package.Workbook.Worksheets.Add("Timesheets");
+
+            sheet.Cells[1, 1].Value = "Id";
+            sheet.Cells[1, 2].Value = "UserId";
+            sheet.Cells[1, 3].Value = "UserName";
+            sheet.Cells[1, 4].Value = "ProjectId";
+            sheet.Cells[1, 5].Value = "ProjectName";
+            sheet.Cells[1, 6].Value = "Date";
+            sheet.Cells[1, 7].Value = "Hours";
+            sheet.Cells[1, 8].Value = "Description";
+            sheet.Cells[1, 9].Value = "Status";
+            sheet.Cells[1, 10].Value = "ApprovedBy";
+            sheet.Cells[1, 11].Value = "ApprovedOn";
+
+            var row = 2;
+            foreach (var t in data)
+            {
+                sheet.Cells[row, 1].Value = t.Id;
+                sheet.Cells[row, 2].Value = t.UserId;
+                sheet.Cells[row, 3].Value = t.UserName;
+                sheet.Cells[row, 4].Value = t.ProjectId;
+                sheet.Cells[row, 5].Value = t.ProjectName;
+                sheet.Cells[row, 6].Value = t.Date;
+                sheet.Cells[row, 7].Value = t.HoursWorked;
+                sheet.Cells[row, 8].Value = t.Description ?? string.Empty;
+                sheet.Cells[row, 9].Value = t.Status;
+                sheet.Cells[row, 10].Value = t.ApprovedBy;
+                sheet.Cells[row, 11].Value = t.ApprovedOn;
+                row++;
+            }
+
+            using (var headerRange = sheet.Cells[1, 1, 1, 11])
+            {
+                headerRange.Style.Font.Bold = true;
+            }
+
+            var bytes = package.GetAsByteArray();
+            var fileName = $"Timesheets-{DateTime.UtcNow:yyyyMMdd}.xlsx";
+            return File(
+                bytes,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
+        }
+
+        /// <summary>
         /// Dashboard report: total hours by project.
         /// Admin: all timesheets.
         /// Manager: only timesheets in manager's departments (same scope as manager-timesheets).
@@ -302,10 +435,28 @@ namespace TimesheetAPI.Controllers
             if (!projectActive.IsActive)
                 return BadRequest(new { message = "Project is inactive" });
 
+            var origDate = existing.Date;
+            var origHours = existing.HoursWorked;
+            var origProjectId = existing.ProjectId;
+            var origDescription = existing.Description;
+
             existing.Date = updated.Date;
             existing.HoursWorked = updated.HoursWorked;
             existing.Description = updated.Description;
             existing.ProjectId = updated.ProjectId;
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = "Updated",
+                PerformedBy = userId,
+                Entity = "Timesheet",
+                EntityId = existing.Id,
+                Details =
+                    $"Date:{origDate:yyyy-MM-dd}->{existing.Date:yyyy-MM-dd}; " +
+                    $"Hours:{origHours}->{existing.HoursWorked}; " +
+                    $"ProjectId:{origProjectId}->{existing.ProjectId}; " +
+                    $"Description changed={(origDescription != existing.Description)}"
+            });
 
             _context.SaveChanges();
 
@@ -322,9 +473,20 @@ namespace TimesheetAPI.Controllers
             if (ts == null)
                 return NotFound();
 
+            var reviewerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var previousStatus = ts.Status;
             ts.Status = "Approved";
-            ts.ApprovedBy = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            ts.ApprovedBy = reviewerId;
             ts.ApprovedOn = DateTime.UtcNow;
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = "Approved",
+                PerformedBy = reviewerId,
+                Entity = "Timesheet",
+                EntityId = ts.Id,
+                Details = $"Status: {previousStatus} -> Approved; OwnerUserId={ts.UserId}"
+            });
 
             _context.SaveChanges();
 
@@ -341,9 +503,20 @@ namespace TimesheetAPI.Controllers
             if (ts == null)
                 return NotFound();
 
+            var reviewerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            var previousStatus = ts.Status;
             ts.Status = "Rejected";
-            ts.ApprovedBy = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            ts.ApprovedBy = reviewerId;
             ts.ApprovedOn = DateTime.UtcNow;
+
+            _context.AuditLogs.Add(new AuditLog
+            {
+                Action = "Rejected",
+                PerformedBy = reviewerId,
+                Entity = "Timesheet",
+                EntityId = ts.Id,
+                Details = $"Status: {previousStatus} -> Rejected; OwnerUserId={ts.UserId}"
+            });
 
             _context.SaveChanges();
 
