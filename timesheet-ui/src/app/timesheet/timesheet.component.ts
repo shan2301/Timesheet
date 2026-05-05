@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { TimesheetService } from '../services/timesheet.service';
 import { UserService } from '../services/user.service';
 
@@ -40,6 +40,7 @@ export class TimesheetComponent implements OnInit {
   readonly listError = signal<string | null>(null);
   readonly actionError = signal<string | null>(null);
   readonly exportBusy = signal(false);
+  readonly weekId = signal<number | null>(null);
 
   currentProjectId: string | number = '';
   newRow: { taskMasterId: string | number; workDate: string; hours: number; comment: string } = {
@@ -51,13 +52,28 @@ export class TimesheetComponent implements OnInit {
 
   constructor(
     private tsService: TimesheetService,
-    private userService: UserService
+    private userService: UserService,
+    private route: ActivatedRoute,
+    private router: Router
   ) {}
 
   ngOnInit() {
     this.loadProjects();
     this.loadTasks();
-    this.initCurrentWeek();
+    // If opened from list page draft, query param provides Monday (yyyy-mm-dd).
+    const ws = String(this.route.snapshot.queryParamMap.get('weekStartDate') || '').slice(0, 10);
+    if (ws) {
+      this.weekStart.set(ws);
+      const monday = new Date(ws + 'T00:00:00');
+      if (!Number.isNaN(monday.getTime())) this.weekKey.set(this.toIsoWeekKey(monday));
+      const sunday = new Date(monday);
+      sunday.setDate(sunday.getDate() + 6);
+      this.weekEnd.set(this.toYmd(sunday));
+      this.loadWeek();
+    } else {
+      this.initCurrentWeek();
+      this.loadWeek();
+    }
   }
 
   loadProjects() {
@@ -184,6 +200,7 @@ export class TimesheetComponent implements OnInit {
     if (!ws) return;
     this.tsService.getMyWeek(ws).subscribe({
       next: (res: any) => {
+        this.weekId.set(res?.id ?? res?.Id ?? null);
         this.status.set(String(res?.status ?? res?.Status ?? 'Draft'));
         const wsd = String(res?.weekStartDate ?? res?.WeekStartDate ?? ws).slice(0, 10);
         const wed = String(res?.weekEndDate ?? res?.WeekEndDate ?? this.weekEnd()).slice(0, 10);
@@ -359,21 +376,38 @@ export class TimesheetComponent implements OnInit {
       return;
     }
     this.tsService.submitWeek(ws).subscribe({
-      next: () => this.loadWeek(),
-      error: (err) => this.actionError.set(err?.error?.message || 'Failed to submit week.'),
+      next: () => {
+        // Lock UI immediately; backend already prevents resubmits.
+        this.status.set('Submitted');
+        this.loadWeek();
+        const id = this.weekId();
+        if (id) this.router.navigate(['/timesheet/view', id]);
+      },
+      error: (err) => {
+        const msg = String(err?.error?.message || 'Failed to submit week.');
+        if (msg.toLowerCase().includes('already submitted')) {
+          this.status.set('Submitted');
+        }
+        this.actionError.set(msg);
+      },
     });
   }
 
-  /** Legacy daily `Timesheet` rows (not the weekly grid). Uses JWT via HttpClient interceptor. */
-  exportDailyTimesheetsExcel() {
+  /** Export weekly entries for the selected week (uses JWT via HttpClient interceptor). */
+  exportWeeklyExcel() {
     this.actionError.set(null);
     this.exportBusy.set(true);
-    this.tsService.exportTimesheetsExcel().subscribe({
+    const ws = this.weekStart();
+    if (!ws) {
+      this.exportBusy.set(false);
+      return;
+    }
+    this.tsService.exportMyWeeklyExcel(ws).subscribe({
       next: (blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Timesheets-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        a.download = `WeeklyTimesheet-${ws}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
         this.exportBusy.set(false);
@@ -383,6 +417,10 @@ export class TimesheetComponent implements OnInit {
         this.exportBusy.set(false);
       },
     });
+  }
+
+  backToList() {
+    this.router.navigateByUrl('/timesheets');
   }
 }
 

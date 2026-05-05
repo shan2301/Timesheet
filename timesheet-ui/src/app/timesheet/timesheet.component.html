@@ -4,6 +4,9 @@
       <h2 class="title">My Timesheets (Weekly)</h2>
       <p class="subtitle">Fill your work for the selected week and submit once.</p>
     </div>
+    <div class="actions" style="justify-content:flex-end;">
+      <button class="btn btn-link" type="button" (click)="backToList()">Back to list</button>
+    </div>
   </div>
 
   <div class="card-body stack">
@@ -20,7 +23,7 @@
         </div>
       </div>
       <div class="actions" style="justify-content: flex-end;">
-        <button class="btn" type="button" (click)="exportDailyTimesheetsExcel()" [disabled]="exportBusy()">
+        <button class="btn" type="button" (click)="exportWeeklyExcel()" [disabled]="exportBusy() || status() !== 'Approved' || !weekStart()">
           {{ exportBusy() ? 'Exporting…' : 'Export Excel' }}
         </button>
         <button class="btn" type="button" (click)="loadWeek()">Refresh</button>

@@ -63,12 +63,34 @@ export class TimesheetService {
     return this.http.get(`${this.weeklyUrl}/my?weekStartDate=${encodeURIComponent(weekStartDate)}`);
   }
 
+  /** Employee: list all weeks and statuses. */
+  listMyWeeks() {
+    return this.http.get<unknown[]>(`${this.weeklyUrl}/mine`);
+  }
+
   saveWeek(payload: { weekStartDate: string; entries: any[] }) {
     return this.http.post(`${this.weeklyUrl}/save`, payload);
   }
 
   submitWeek(weekStartDate: string) {
     return this.http.post(`${this.weeklyUrl}/submit?weekStartDate=${encodeURIComponent(weekStartDate)}`, {});
+  }
+
+  /** Weekly timesheet export (Employee: current week; Manager/Admin: use exportWeeklyById). */
+  exportMyWeeklyExcel(weekStartDate: string) {
+    return this.http.get(`${this.weeklyUrl}/export?weekStartDate=${encodeURIComponent(weekStartDate)}`, {
+      responseType: 'blob',
+    });
+  }
+
+  /** Employee: consolidated monthly export (Approved entries only). */
+  exportMyMonthlyExcel(year: number, month: number) {
+    return this.http.get(`${this.weeklyUrl}/export-month?year=${year}&month=${month}`, { responseType: 'blob' });
+  }
+
+  /** Weekly timesheet export by submission id (Employee: own; Manager: scoped; Admin: any). */
+  exportWeeklyById(id: number) {
+    return this.http.get(`${this.weeklyUrl}/export/${id}`, { responseType: 'blob' });
   }
 
   /** Legacy daily timesheet rows; scope depends on role (Bearer via interceptor). */

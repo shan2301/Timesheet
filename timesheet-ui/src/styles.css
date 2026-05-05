@@ -297,6 +297,19 @@ body {
   padding: 22px;
 }
 
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.card-header > .actions {
+  justify-content: flex-end;
+}
+
 .header {
   display: flex;
   align-items: center;

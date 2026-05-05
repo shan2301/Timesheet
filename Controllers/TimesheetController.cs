@@ -239,6 +239,9 @@ namespace TimesheetAPI.Controllers
                 baseQuery = _context.Timesheets.AsNoTracking().Where(t => t.UserId == callerId);
             }
 
+            // Export only approved rows.
+            baseQuery = baseQuery.Where(t => t.Status == "Approved");
+
             var data = (
                 from t in baseQuery
                 join u in _context.Users.AsNoTracking() on t.UserId equals u.Id
