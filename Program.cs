@@ -161,4 +161,6 @@ app.UseAuthorization();
 
 app.MapControllers().RequireCors("AllowAll"); // ✅ IMPORTANT
 
+app.MapGet("/", () => "Timesheet API is live");
+
 app.Run();
