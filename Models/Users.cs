@@ -24,6 +24,9 @@ namespace TimesheetAPI.Models
 
         public string? Designation { get; set; }
 
+        public string Role { get; set; } = Security.Roles.Employee; // Admin | Manager | Employee
+        public bool IsActive { get; set; } = true;
+
         public int? ManagerId { get; set; }
         public User? Manager { get; set; }
         public ICollection<User> DirectReports { get; set; } = new List<User>();

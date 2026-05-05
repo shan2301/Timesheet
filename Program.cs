@@ -48,7 +48,7 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("DevCors", policy =>
+    options.AddPolicy("AllowAll", policy =>
         policy.AllowAnyOrigin()
               .AllowAnyHeader()
               .AllowAnyMethod()
@@ -144,11 +144,11 @@ app.UseHttpsRedirection();
 
 app.UseRouting();
 
-app.UseCors("DevCors");
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers().RequireCors("DevCors"); // ✅ IMPORTANT
+app.MapControllers().RequireCors("AllowAll"); // ✅ IMPORTANT
 
 app.Run();
