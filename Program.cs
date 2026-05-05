@@ -84,10 +84,15 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<NotificationService>();
 
 // Database connection
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions => sqlOptions.EnableRetryOnFailure()
+        connectionString,
+        sqlOptions =>
+        {
+            sqlOptions.CommandTimeout(120);
+            sqlOptions.EnableRetryOnFailure();
+        }
     )
 );
 
@@ -95,48 +100,14 @@ var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-    var adminEmail = "sundarshashank@gmail.com";
-
-    if (!db.Users.Any(u => u.Email == adminEmail))
+    try
     {
-        db.Users.Add(new User
-        {
-            Name = "Admin",
-            Email = adminEmail,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("123456"),
-            Role = Roles.Admin,
-            IsActive = true,
-            CreatedDate = DateTime.UtcNow
-        });
-
-        db.SaveChanges();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        SeedData.Initialize(db);
     }
-
-    // Backfill previous role name to the new standardized role
-    var legacyUsers = db.Users.Where(u => u.Role == "User").ToList();
-    if (legacyUsers.Count > 0)
+    catch (Exception ex)
     {
-        foreach (var u in legacyUsers)
-        {
-            u.Role = Roles.Employee;
-        }
-
-        db.SaveChanges();
-    }
-
-    // If the IsActive column was just added with a default of false,
-    // existing rows may all be disabled. Flip to active once in that case.
-    var totalUsers = db.Users.Count();
-    if (totalUsers > 0 && db.Users.All(u => !u.IsActive))
-    {
-        foreach (var u in db.Users)
-        {
-            u.IsActive = true;
-        }
-
-        db.SaveChanges();
+        Console.WriteLine($"Database startup skipped: {ex.Message}");
     }
 }
 
