@@ -124,6 +124,14 @@ namespace TimesheetAPI.Controllers
                 });
             }
 
+            if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+            {
+                return StatusCode(500, new
+                {
+                    message = "JWT key too short. Jwt:Key must be at least 32 bytes (256 bits) for HS256."
+                });
+            }
+
             SymmetricSecurityKey key;
             try
             {

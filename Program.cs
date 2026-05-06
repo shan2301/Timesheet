@@ -61,6 +61,16 @@ builder.Services.AddCors(options =>
     );
 });
 
+// JWT config (Render env vars use double-underscore, e.g. Jwt__Key).
+// HS256 requires >= 256-bit key. If missing/short, keep app running but auth will fail until configured.
+var jwtKey = builder.Configuration["Jwt:Key"] ?? string.Empty;
+var jwtKeyBytes = Encoding.UTF8.GetBytes(jwtKey);
+if (jwtKeyBytes.Length < 32)
+{
+    Console.WriteLine("WARNING: Jwt:Key is missing/too short. Set Jwt__Key to >= 32 chars/bytes for HS256.");
+    jwtKeyBytes = Encoding.UTF8.GetBytes("00000000000000000000000000000000"); // 32 bytes fallback
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -75,7 +85,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
 
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])
+                jwtKeyBytes
             )
         };
     });
