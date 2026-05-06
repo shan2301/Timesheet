@@ -1,9 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class LeaveService {
-  private readonly baseUrl = 'http://localhost:5007/api/Leave';
+  private readonly baseUrl = `${environment.apiUrl}/Leave`;
 
   constructor(private http: HttpClient) {}
 

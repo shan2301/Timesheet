@@ -1,10 +1,11 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class TimesheetService {
-  apiUrl = 'http://localhost:5007/api/timesheet';
-  weeklyUrl = 'http://localhost:5007/api/weekly-timesheet';
+  private readonly apiUrl = `${environment.apiUrl}/timesheet`;
+  private readonly weeklyUrl = `${environment.apiUrl}/weekly-timesheet`;
 
   constructor(private http: HttpClient) {}
 

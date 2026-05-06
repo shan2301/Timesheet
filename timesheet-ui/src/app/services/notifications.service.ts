@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { environment } from '../../environments/environment';
 
 export type NotificationRow = {
   id: number;
@@ -10,7 +11,7 @@ export type NotificationRow = {
 
 @Injectable({ providedIn: 'root' })
 export class NotificationsService {
-  private readonly baseUrl = 'http://localhost:5007/api/Notifications';
+  private readonly baseUrl = `${environment.apiUrl}/Notifications`;
 
   constructor(private http: HttpClient) {}
 
