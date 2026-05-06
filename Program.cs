@@ -8,6 +8,7 @@ using TimesheetAPI.Security;
 using TimesheetAPI.Services;
 using System.Text;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics;
 
 // EPPlus 5+ requires an explicit license context (use Commercial for commercial products).
 ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
@@ -112,6 +113,23 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Middleware
+app.UseExceptionHandler(appError =>
+{
+    appError.Run(async context =>
+    {
+        var feature = context.Features.Get<IExceptionHandlerFeature>();
+        var ex = feature?.Error;
+
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new
+        {
+            message = "Unhandled server error",
+            detail = ex?.Message
+        });
+    });
+});
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
