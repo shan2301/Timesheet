@@ -8,6 +8,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 
 namespace TimesheetAPI.Controllers
 {
@@ -51,23 +52,24 @@ namespace TimesheetAPI.Controllers
 
         // ✅ LOGIN + JWT
         [HttpPost("login")]
-        public IActionResult Login(LoginRequest request)
+        public async Task<IActionResult> Login(LoginRequest request)
         {
             if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Password))
                 return BadRequest(new { message = "Email and password are required" });
 
-            var user = _context.Users.FirstOrDefault(u => u.Email == request.Email);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == request.Email);
 
             if (user == null)
-                return Unauthorized(new { message = "Invalid email or password" });
+                return Unauthorized("Invalid email or password");
 
             if (!user.IsActive)
                 return Unauthorized(new { message = "User is disabled" });
 
-            bool isValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+                return Unauthorized("Invalid email or password");
 
-            if (!isValid)
-                return Unauthorized(new { message = "Invalid email or password" });
+            // password ok
 
             // 🔐 CREATE TOKEN
             var claims = new[]
