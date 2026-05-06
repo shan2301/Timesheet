@@ -57,8 +57,10 @@ namespace TimesheetAPI.Controllers
             if (string.IsNullOrEmpty(request.Email) || string.IsNullOrEmpty(request.Password))
                 return BadRequest(new { message = "Email and password are required" });
 
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == request.Email);
+            var email = request.Email.Trim();
+            var password = request.Password;
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
 
             if (user == null)
                 return Unauthorized("Invalid email or password");
@@ -66,7 +68,10 @@ namespace TimesheetAPI.Controllers
             if (!user.IsActive)
                 return Unauthorized(new { message = "User is disabled" });
 
-            bool isValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+            if (string.IsNullOrWhiteSpace(user.PasswordHash))
+                return Unauthorized("Invalid email or password");
+
+            bool isValid = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
 
             if (!isValid)
                 return Unauthorized("Invalid email or password");
@@ -81,15 +86,26 @@ namespace TimesheetAPI.Controllers
                 new Claim(ClaimTypes.Role, user.Role) // 🔥 ADD THIS
             };
 
-            var key = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(_configuration["Jwt:Key"])
-            );
+            var jwtKey = _configuration["Jwt:Key"];
+            var jwtIssuer = _configuration["Jwt:Issuer"];
+            var jwtAudience = _configuration["Jwt:Audience"];
+
+            if (string.IsNullOrWhiteSpace(jwtKey) || string.IsNullOrWhiteSpace(jwtIssuer) || string.IsNullOrWhiteSpace(jwtAudience))
+            {
+                // Production-safe: avoid 500 due to missing env vars on Render
+                return StatusCode(500, new
+                {
+                    message = "Server auth configuration missing (Jwt:Key/Issuer/Audience). Set environment variables and redeploy."
+                });
+            }
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
+                issuer: jwtIssuer,
+                audience: jwtAudience,
                 claims: claims,
                 expires: DateTime.UtcNow.AddHours(2),
                 signingCredentials: creds
