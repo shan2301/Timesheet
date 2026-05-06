@@ -60,7 +60,20 @@ namespace TimesheetAPI.Controllers
             var email = request.Email.Trim();
             var password = request.Password;
 
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            User? user;
+            try
+            {
+                user = await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+            }
+            catch (Exception ex)
+            {
+                // Production-safe: DB/network issues should not crash the API.
+                return StatusCode(500, new
+                {
+                    message = "Database error while logging in. Check production connection string / Azure SQL firewall.",
+                    detail = ex.Message
+                });
+            }
 
             if (user == null)
                 return Unauthorized("Invalid email or password");
@@ -71,7 +84,19 @@ namespace TimesheetAPI.Controllers
             if (string.IsNullOrWhiteSpace(user.PasswordHash))
                 return Unauthorized("Invalid email or password");
 
-            bool isValid = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+            bool isValid;
+            try
+            {
+                isValid = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "Password verification error while logging in.",
+                    detail = ex.Message
+                });
+            }
 
             if (!isValid)
                 return Unauthorized("Invalid email or password");
@@ -99,7 +124,19 @@ namespace TimesheetAPI.Controllers
                 });
             }
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+            SymmetricSecurityKey key;
+            try
+            {
+                key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    message = "JWT key configuration error (Jwt:Key).",
+                    detail = ex.Message
+                });
+            }
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
