@@ -66,7 +66,9 @@ namespace TimesheetAPI.Controllers
             if (!user.IsActive)
                 return Unauthorized(new { message = "User is disabled" });
 
-            if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+            bool isValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
+
+            if (!isValid)
                 return Unauthorized("Invalid email or password");
 
             // password ok
@@ -97,6 +99,7 @@ namespace TimesheetAPI.Controllers
 
             return Ok(new
             {
+                message = "Login successful",
                 token = jwt,
                 userId = user.Id,
                 email = user.Email
