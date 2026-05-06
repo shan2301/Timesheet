@@ -1,0 +1,9 @@
+{
+  "name": "timesheet-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix timesheet-ui ci && npm --prefix timesheet-ui run build",
+    "start": "npm --prefix timesheet-ui start"
+  }
+}
+
