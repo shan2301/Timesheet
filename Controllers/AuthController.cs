@@ -14,6 +14,7 @@ namespace TimesheetAPI.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class AuthController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -27,6 +28,7 @@ namespace TimesheetAPI.Controllers
         }
 
         // ✅ REGISTER
+        [AllowAnonymous]
         [HttpPost("register")]
         public IActionResult Register(User user)
         {
@@ -51,6 +53,7 @@ namespace TimesheetAPI.Controllers
         }
 
         // ✅ LOGIN + JWT
+        [AllowAnonymous]
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request)
         {
@@ -167,7 +170,6 @@ namespace TimesheetAPI.Controllers
             });
         }
 
-        [Authorize]
         [HttpGet("test")]
         public IActionResult Test()
         {
