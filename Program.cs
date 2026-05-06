@@ -112,11 +112,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Middleware
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // "http" launch profile has no HTTPS URL; redirect middleware then logs a warning.
 if (!app.Environment.IsProduction())
