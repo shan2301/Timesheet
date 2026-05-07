@@ -1,6 +1,9 @@
 {
   "name": "timesheet-monorepo",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "build": "npm --prefix timesheet-ui ci && npm --prefix timesheet-ui run build",
     "start": "npm --prefix timesheet-ui start"
