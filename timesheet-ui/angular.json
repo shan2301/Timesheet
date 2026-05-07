@@ -33,9 +33,6 @@
             "production": {
               "optimization": true,
               "sourceMap": false,
-              "buildOptimizer": true,
-              "namedChunks": false,
-              "vendorChunk": false,
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
